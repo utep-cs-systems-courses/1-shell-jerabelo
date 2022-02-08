@@ -1,23 +1,30 @@
-import os, sys, re
+import os,re,sys
 
-#method that prints a prompt string specified by shell variable PS1.
-def print_string(input):
-    if (len(input)):
-        return '$'
-    else:
-        args = []
-        for item in input.split():
-            args.append(item)
-            return args
+path = os.getcwd()
+dir_list = os.listdir(path)
 
+def CurrPath():
+    os.write(path)
 
-#method for changing directory
-def change_directory(location):
+def ChangePath(args):
     try:
-        os.chdir(location)
+        os.chdir(args)
     except FileNotFoundError:
-        os.write(1,(f'file{args[1]} not found!\n').encode())
+        os.write(f'file{args[1]} not found!\n'.encode())
+
+def main(*args):
+    while(True):
+        os.fork()
+        if len(args) == 0:
+            os.write('$ ')
+            prompt = input()
+            if prompt == 'ls':
+                CurrPath()
+            elif prompt == 'dir':
+                os.write('File & directories: ')
+                os.write(dir_list)
+                continue
 
 
-def get_current_directory:
-    getcwd():
+
+
