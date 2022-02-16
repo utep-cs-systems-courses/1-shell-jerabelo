@@ -1,4 +1,4 @@
-import os, sys, re
+import os, sys, re, time
 
 #Method for checking ps1 variable and returning current shell ps1
 def check_prompt():
@@ -21,8 +21,8 @@ def execute_commands():
         if commands == 'cd':
             os.write(2, "cd command executing...\n".encode())
         else:
-            for directory in re.split(":", os.enviorn['PATH']):
-                prog = "%s/%s" % (directory, commands[0])
+            for dir in re.split(":", os.enviorn['PATH']):
+                prog = "%s/%s" % (dir, commands[0])
                 try:
                     os.execve(prog, commands, os.environ)
                 except FileNotFoundError:
