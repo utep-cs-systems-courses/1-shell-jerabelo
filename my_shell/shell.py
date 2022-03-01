@@ -1,102 +1,83 @@
-import os
-import select
-import sys
-import traceback
+import sys,os,re
 
-from django.core.management import BaseCommand, CommandError
-from django.utils.datastructures import OrderedSet
+#method that checks if ps1 is passed if not,sets default '$'
+def token():
+    if 'PS1' in os.environ:
+        #set os.enviorn
+        os.environ['PS1'] == 'PS1'
+        return os.environ['PS1']
+    else:
+        os.environ['PS1'] == "$ "
+        #set os.environ and then return
+        return os.environ['PS1']
 
+def menu(commands):
+    if commands[0] == "exit":
+        sys.exit(1)
+    elif commands[0] == "cd":
+        cd_command(commands)
+    elif commands.__contains__("|"):
+        commands = pipe_commands(commands)
+        (r,w) = os.pipe()
+        os.set_inheritable(0,True)
+        os.set_inheritable(1,True)
+        #closing output
+        os.close(0)
+        os.dup(r)
+        execute(commands)
+    child = os.fork()
+    if child < 0:
+        sys.exit(1)
+    elif child == 0:
+        if commands.__contains__(">"):
+            os.close(1)
+            os.open(commands[2], os.O_CREAT | os.O_WRONLY)
+            #making child writing fd inheritable
+            os.set_inheritable(1, True)
+            commands = commands[:1]
 
-class Command(BaseCommand):
-    help = (
-        "Runs a Python interactive interpreter. Tries to use IPython or "
-        "bpython, if one of them is available. Any standard input is executed "
-        "as code."
-    )
+        elif commands.__contains__("<"):
+            os.close(0)
+            os.open(commands[2], os.O_RDONLY)
+            # making child reading fd inheritable
+            os.set_inheritable(0, True)
+            commands = commands[:1]
+        execute(commands)
+    else:
+        childPidCode = os.wait()
 
-    requires_system_checks = False
-    shells = ['ipython', 'bpython', 'python']
+def cd_command(path):
+    if len(path) > 1:
+        try:
+            os.chdir(path[1])
+        except Exception:
+            print("cd: no such file or directory: {}".format(path[1]))
+    else:
+        os.chdir(os.path.expanduser("~"))
 
-    def add_arguments(self, parser):
-        parser.add_argument(
-            '--no-startup', action='store_true',
-            help='When using plain Python, ignore the PYTHONSTARTUP environment variable and ~/.pythonrc.py script.',
-        )
-        parser.add_argument(
-            '-i', '--interface', choices=self.shells,
-            help='Specify an interactive interpreter interface. Available options: "ipython", "bpython", and "python"',
-        )
-        parser.add_argument(
-            '-c', '--command',
-            help='Instead of opening an interactive shell, run a command as Django and exit.',
-        )
+def main():
+    while True:
+        path = f"{os.getcwd()} $"
+        os.write(1, path.encode())
+        commands = os.read(0, 1000).decode().split()
+        menu(commands)
+        continue
 
-    def ipython(self, options):
-        from IPython import start_ipython
-        start_ipython(argv=[])
-
-    def bpython(self, options):
-        import bpython
-        bpython.embed()
-
-    def python(self, options):
-        import code
-        # Set up a dictionary to serve as the environment for the shell, so
-        # that tab completion works on objects that are imported at runtime.
-        imported_objects = {}
-        try:  # Try activating rlcompleter, because it's handy.
-            import readline
-        except ImportError:
+def execute(commands):
+    for dir in re.split(":", os.environ['PATH']):  # try each directory in the path
+        program = "%s/%s" % (dir, commands[0])
+        try:
+            os.execve(program, commands, os.environ)  # try to exec program
+        except FileNotFoundError:
             pass
-        else:
-            # We don't have to wrap the following import in a 'try', because
-            # we already know 'readline' was imported successfully.
-            import rlcompleter
-            readline.set_completer(rlcompleter.Completer(imported_objects).complete)
-            # Enable tab completion on systems using libedit (e.g. macOS).
-            # These lines are copied from Python's Lib/site.py.
-            readline_doc = getattr(readline, '__doc__', '')
-            if readline_doc is not None and 'libedit' in readline_doc:
-                readline.parse_and_bind("bind ^I rl_complete")
-            else:
-                readline.parse_and_bind("tab:complete")
+    os.write(2, ("Child: Error: Could not exec %s\n" % commands[0]).encode())
+    sys.exit(1)
 
-        # We want to honor both $PYTHONSTARTUP and .pythonrc.py, so follow system
-        # conventions and get $PYTHONSTARTUP first then .pythonrc.py.
-        if not options['no_startup']:
-            for pythonrc in OrderedSet([os.environ.get("PYTHONSTARTUP"), os.path.expanduser('~/.pythonrc.py')]):
-                if not pythonrc:
-                    continue
-                if not os.path.isfile(pythonrc):
-                    continue
-                with open(pythonrc) as handle:
-                    pythonrc_code = handle.read()
-                # Match the behavior of the cpython shell where an error in
-                # PYTHONSTARTUP prints an exception and continues.
-                try:
-                    exec(compile(pythonrc_code, pythonrc, 'exec'), imported_objects)
-                except Exception:
-                    traceback.print_exc()
+def pipe_commands(commands):
+    for line in commands:
+        cmds = line.split('|')
+        return cmds
 
-        code.interact(local=imported_objects)
 
-    def handle(self, **options):
-        # Execute the command and exit.
-        if options['command']:
-            exec(options['command'])
-            return
-
-        # Execute stdin if it has anything to read and exit.
-        # Not supported on Windows due to select.select() limitations.
-        if sys.platform != 'win32' and not sys.stdin.isatty() and select.select([sys.stdin], [], [], 0)[0]:
-            exec(sys.stdin.read())
-            return
-
-        available_shells = [options['interface']] if options['interface'] else self.shells
-
-        for shell in available_shells:
-            try:
-                return getattr(self, shell)(options)
-            except ImportError:
-                pass
-        raise CommandError("Couldn't import {} interface.".format(shell))
+if '__main__' == __name__:
+    main()
