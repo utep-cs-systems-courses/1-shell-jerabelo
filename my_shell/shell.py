@@ -1,4 +1,4 @@
-import sys,os,re
+import sys,os,re, shutil
 
 #method that checks if ps1 is passed if not,sets default '$'
 def token():
@@ -78,6 +78,16 @@ def execute(commands):
     os.write(2, ("Child: Error: Could not exec %s\n" % commands[0]).encode())
     sys.exit(1)
 
+#Function that finds a specific filename and prints our the full path of all matches
+def archive(commands):
+    if commands[0] in shutil.get_archive_formats():
+        shutil.make_archive(commands[1],commands[0],'Python-3.3.0')
+        os.write(1,"File has been archived!".encode())
+    #stream of bytes
+
+def unarchive(commands):
+    shutil.unpack_archive('Python-3.0.0.tgz')
+
 #pipe method
 def run_pipe(commands):
     (r, w) = os.pipe()
@@ -128,11 +138,6 @@ def run_pipe(commands):
 #design when sender send archieve file, find typ eof file, what bytes belong to first file, and second
 #encode info about length of file and file name, everything else if extra, you can add
 #extract original files from archive
-def archive(commands):
-    file = commands[1]
-    path = os.getcwd()
-    full_path = file + "/" + path
-    execute(full_path)
 
 if '__main__' == __name__:
     main()
